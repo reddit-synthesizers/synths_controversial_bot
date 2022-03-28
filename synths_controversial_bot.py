@@ -1,10 +1,7 @@
 import praw
 import datetime
 import json
-<<<<<<< HEAD
 import math
-=======
->>>>>>> b9499ff (Init repo.)
 import os
 
 from praw.models import MoreComments
@@ -13,11 +10,7 @@ DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
 MIN_COMMENTS_TO_WARN = 10
 MIN_AGE_TO_WARN = 30
-<<<<<<< HEAD
 SCORE_THRESHHOLD = 20
-=======
-SCORE_THRESHHOLD = 10
->>>>>>> b9499ff (Init repo.)
 
 
 class SynthsControversialBot:
@@ -44,7 +37,6 @@ class SynthsControversialBot:
             if (self.get_submission_age(submission) >= MIN_AGE_TO_WARN
                     and submission.num_comments >= MIN_COMMENTS_TO_WARN):
 
-<<<<<<< HEAD
                 downvoted_comments = 0
                 score += self.get_user_reports_count(submission) 
 
@@ -62,35 +54,6 @@ class SynthsControversialBot:
                         downvoted_comments += 1
 
                 score += math.ceil(downvoted_comments / submission.num_comments * 100)
-=======
-                score += submission.user_reports.__len__()
-
-                if hasattr(submission, 'user_reports_dismissed'):
-                    score += submission.user_reports_dismissed.__len__()
-
-                comments = submission.comments.list()
-
-                for comment in comments:
-                    if isinstance(comment, MoreComments):
-                        continue
-
-                    score += comment.user_reports.__len__()
-                    score += comment.controversiality
-                    score += comment.user_reports.__len__()
-
-                    if hasattr(comment, 'user_reports_dismissed'):
-                        score += comment.user_reports_dismissed.__len__()
-
-                    if comment.banned_at_utc is not None:
-                        score += 1
-
-                    negative_comments = 0
-
-                    if comment.score < 0:
-                        negative_comments += 1
-
-                score += negative_comments / submission.num_comments * 100
->>>>>>> b9499ff (Init repo.)
 
                 if score >= SCORE_THRESHHOLD:
                     self.warn(submission, score)
@@ -106,7 +69,6 @@ class SynthsControversialBot:
 
         return weight
 
-<<<<<<< HEAD
     def get_user_reports_count(self, object):
         count = object.user_reports.__len__()
 
@@ -115,8 +77,6 @@ class SynthsControversialBot:
 
         return count
 
-=======
->>>>>>> b9499ff (Init repo.)
     def warn(self, submission, score):
         if not self.was_warned(submission):
             if not self.dry_run:
@@ -124,13 +84,9 @@ class SynthsControversialBot:
                 bot_comment.mod.distinguish(sticky=True)
                 bot_comment.mod.ignore_reports()
 
-<<<<<<< HEAD
                 submission.report('Heads up. This thread is trending controversial.')
 
             self.log('Warned (score=' + str(score) + ')', submission)
-=======
-            self.log('Warned (score=' + str(round(score, 2)) + ')', submission)
->>>>>>> b9499ff (Init repo.)
 
     def get_submission_age(self, submission):
         now = datetime.datetime.now()
@@ -140,10 +96,7 @@ class SynthsControversialBot:
 
     def was_warned(self, submission):
         warned = False
-<<<<<<< HEAD
 
-=======
->>>>>>> b9499ff (Init repo.)
         comments = submission.comments.list()
         if comments.__len__() > 0:
             first_comment = comments.__getitem__(0)
