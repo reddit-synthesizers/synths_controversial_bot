@@ -11,7 +11,7 @@ from praw.models import MoreComments
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
 MIN_COMMENTS_TO_WARN = 10
-MIN_AGE_TO_WARN = 30
+MIN_SUBMISSION_AGE_TO_WARN = 60
 SCORE_THRESHHOLD = 10.0
 MAX_SUBMISSIONS_TO_PROCESS = 50
 
@@ -43,7 +43,7 @@ class SynthsControversialBot:
         age = self.get_submission_age(submission)
 
         if (score > 0
-                and age >= MIN_AGE_TO_WARN
+                and age >= MIN_SUBMISSION_AGE_TO_WARN
                 and submission.num_comments >= MIN_COMMENTS_TO_WARN
                 and not submission.distinguished == 'moderator'
                 and not submission.approved
@@ -57,7 +57,9 @@ class SynthsControversialBot:
             if score >= SCORE_THRESHHOLD:
                 self.warn(submission, score)
             elif score >= SCORE_THRESHHOLD / 1.5:
-                self.log('Trending (score=' + str(score) + ')', submission)
+                self.log('Trending', submission, score)
+            else:
+                self.log('Info', submission, score)
 
     def get_title_score(self, submission):
         score = 0
@@ -79,10 +81,9 @@ class SynthsControversialBot:
         score = 0
         downvoted_comments = 0
 
-        for comment in submission.comments.list():
-            if isinstance(comment, MoreComments):  # ignoring MoreComments (for now)
-                continue
+        submission.comments.replace_more(limit=None)
 
+        for comment in submission.comments.list():
             if comment.removed:
                 score += self.weights['removed']
 
@@ -108,7 +109,7 @@ class SynthsControversialBot:
 
                 submission.report('Heads up. This thread is trending controversial.')
 
-            self.log('Warned (score=' + str(score) + ')', submission)
+            self.log('Warned', submission, score)
 
     def was_warned(self, submission):
         warned = False
@@ -151,11 +152,11 @@ class SynthsControversialBot:
 
         return data
 
-    def log(self, message, submission):
+    def log(self, message, submission, score):
         is_dry_run = '*' if self.dry_run is True else ''
         name = type(self).__name__
         now = datetime.datetime.now()
-        print(f'{is_dry_run}[{name}][{now}] {message}: \'{submission.title}\' ({submission.id})')
+        print(f'{is_dry_run}[{name}][{now}] {message}: (score={score}) \'{submission.title}\' ({submission.id})')
 
 
 def lambda_handler(event=None, context=None):
