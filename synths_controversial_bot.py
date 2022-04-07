@@ -26,8 +26,8 @@ class Score():
         return self.title + self.body + self.reports + self.comments
 
     def __str__(self):
-        return (f'total:{self.calculate()}, title:{self.title}, body:{self.body}, '
-                f'reports:{self.reports}, comments:{self.comments}')
+        return (f'total:{self.calculate():.2f}, title:{self.title:.2f}, body:{self.body:.2f}, '
+                f'reports:{self.reports:.2f}, comments:{self.comments:.2f}')
 
 
 class SynthsControversialBot:
@@ -75,8 +75,6 @@ class SynthsControversialBot:
                 self.warn(submission, score)
             elif submission_score >= SCORE_THRESHHOLD / 1.5:
                 self.log('Trending', submission, score)
-            else:
-                self.log('Info', submission, score)
 
     def calc_title_score(self, submission):
         score = 0
