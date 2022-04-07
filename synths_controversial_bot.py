@@ -16,6 +16,20 @@ SCORE_THRESHHOLD = 10.0
 MAX_SUBMISSIONS_TO_PROCESS = 50
 
 
+class Score():
+    title = 0.0
+    body = 0.0
+    reports = 0.0
+    comments = 0.0
+
+    def calculate(self):
+        return self.title + self.body + self.reports + self.comments
+
+    def __str__(self):
+        return (f'total:{self.calculate()}, title:{self.title}, body:{self.body}, '
+                f'reports:{self.reports}, comments:{self.comments}')
+
+
 class SynthsControversialBot:
     def __init__(self, subreddit_name=DEFAULT_SUBREDDIT_NAME, dry_run=False):
         self.dry_run = dry_run
@@ -36,13 +50,15 @@ class SynthsControversialBot:
             self.process_submission(submission)
 
     def process_submission(self, submission):
-        score = 0
-        score += self.get_title_score(submission)
-        score += self.get_body_score(submission)
+        score = Score()
 
-        age = self.get_submission_age(submission)
+        score.title = self.calc_title_score(submission)
+        score.body = self.calc_body_score(submission)
 
-        if (score > 0
+        age = self.calc_submission_age(submission)
+
+        # expensive calls below
+        if (score.calculate() > 0.0
                 and age >= MIN_SUBMISSION_AGE_TO_WARN
                 and submission.num_comments >= MIN_COMMENTS_TO_WARN
                 and not submission.distinguished == 'moderator'
@@ -50,18 +66,19 @@ class SynthsControversialBot:
                 and not submission.removed
                 and not submission.locked):
 
-            score += self.get_user_reports_count(submission)
-            score += self.get_comments_score(submission)
-            score = round(score, 2)
+            score.reports = self.calc_user_reports_count(submission)
+            score.comments = self.calc_comments_score(submission)
 
-            if score >= SCORE_THRESHHOLD:
+            submission_score = score.calculate()
+
+            if submission_score >= SCORE_THRESHHOLD:
                 self.warn(submission, score)
-            elif score >= SCORE_THRESHHOLD / 1.5:
+            elif submission_score >= SCORE_THRESHHOLD / 1.5:
                 self.log('Trending', submission, score)
             else:
                 self.log('Info', submission, score)
 
-    def get_title_score(self, submission):
+    def calc_title_score(self, submission):
         score = 0
 
         for keyword in self.keyword_processor.extract_keywords(submission.title):
@@ -69,7 +86,7 @@ class SynthsControversialBot:
 
         return score
 
-    def get_body_score(self, submission):
+    def calc_body_score(self, submission):
         score = 0
 
         for keyword in self.keyword_processor.extract_keywords(submission.selftext):
@@ -77,7 +94,7 @@ class SynthsControversialBot:
 
         return score
 
-    def get_comments_score(self, submission):
+    def calc_comments_score(self, submission):
         score = 0
         downvoted_comments = 0
 
@@ -88,7 +105,7 @@ class SynthsControversialBot:
                 score += self.weights['removed']
 
             score += comment.controversiality * self.weights['controversial']
-            score += self.get_user_reports_count(comment) * self.weights['reported']
+            score += self.calc_user_reports_count(comment) * self.weights['reported']
 
             if comment.score <= 0:
                 downvoted_comments += 1
@@ -121,8 +138,8 @@ class SynthsControversialBot:
 
         return warned
 
-    @staticmethod
-    def get_user_reports_count(obj):
+    @ staticmethod
+    def calc_user_reports_count(obj):
         count = len(obj.user_reports)
 
         if hasattr(obj, 'user_reports_dismissed'):
@@ -130,22 +147,22 @@ class SynthsControversialBot:
 
         return count
 
-    @staticmethod
-    def get_submission_age(submission):
+    @ staticmethod
+    def calc_submission_age(submission):
         now = datetime.datetime.now()
         created = datetime.datetime.fromtimestamp(submission.created_utc)
         age = now - created
 
         return age.total_seconds() / 60
 
-    @staticmethod
+    @ staticmethod
     def read_text_file(filename):
         with open(filename, encoding='utf-8') as file:
             text = file.read()
 
         return text
 
-    @staticmethod
+    @ staticmethod
     def read_json_file(filename):
         with open(filename, encoding='utf-8') as file:
             data = json.load(file)
@@ -156,7 +173,7 @@ class SynthsControversialBot:
         is_dry_run = '*' if self.dry_run is True else ''
         name = type(self).__name__
         now = datetime.datetime.now()
-        print(f'{is_dry_run}[{name}][{now}] {message}: (score={score}) \'{submission.title}\' ({submission.id})')
+        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" ({score}) ({submission.id})')
 
 
 def lambda_handler(event=None, context=None):
