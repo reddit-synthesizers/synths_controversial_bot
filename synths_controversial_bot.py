@@ -5,7 +5,6 @@ import os
 import praw
 
 from flashtext import KeywordProcessor
-from praw.models import MoreComments
 
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
@@ -17,10 +16,11 @@ MAX_SUBMISSIONS_TO_PROCESS = 50
 
 
 class Score():
-    title = 0.0
-    body = 0.0
-    reports = 0.0
-    comments = 0.0
+    def __init__(self, title=0.0, body=0.0, reports=0.0, comments=0.0):
+        self.title = title
+        self.body = body
+        self.reports = reports
+        self.comments = comments
 
     def calculate(self):
         return self.title + self.body + self.reports + self.comments
@@ -45,7 +45,6 @@ class SynthsControversialBot:
         self.keyword_processor.add_keywords_from_list(list(self.keywords))
 
     def scan(self):
-        # for submission in self.subreddit.search('title:behringer', sort='new', limit=50):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
             self.process_submission(submission)
 
@@ -111,7 +110,8 @@ class SynthsControversialBot:
             for keyword in self.keyword_processor.extract_keywords(comment.body):
                 score += self.keywords[keyword]
 
-        score += math.ceil(downvoted_comments / submission.num_comments * self.weights['downvoted'])
+        if submission.num_comments > 0:
+            score += math.ceil(downvoted_comments / submission.num_comments * self.weights['downvoted'])
 
         return score
 
