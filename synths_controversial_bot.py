@@ -11,7 +11,7 @@ DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
 MIN_COMMENTS_TO_WARN = 10
 MIN_SUBMISSION_AGE_TO_WARN = 60
-SCORE_THRESHHOLD = 10.0
+SCORE_THRESHHOLD = 8.0
 MAX_SUBMISSIONS_TO_PROCESS = 50
 
 
@@ -49,15 +49,13 @@ class SynthsControversialBot:
             self.process_submission(submission)
 
     def process_submission(self, submission):
-        score = Score()
-
-        score.title = self.calc_title_score(submission)
-        score.body = self.calc_body_score(submission)
-
         age = self.calc_submission_age(submission)
 
+        score = Score()
+        score.title = self.calc_title_score(submission)
+
         # expensive calls below
-        if (score.calculate() > 0.0
+        if (score.title > 0.0
                 and age >= MIN_SUBMISSION_AGE_TO_WARN
                 and submission.num_comments >= MIN_COMMENTS_TO_WARN
                 and not submission.distinguished == 'moderator'
@@ -65,6 +63,7 @@ class SynthsControversialBot:
                 and not submission.removed
                 and not submission.locked):
 
+            score.body = self.calc_body_score(submission)
             score.reports = self.calc_user_reports_count(submission)
             score.comments = self.calc_comments_score(submission)
 
