@@ -50,12 +50,10 @@ class SynthsControversialBot:
 
     def process_submission(self, submission):
         age = self.calc_submission_age(submission)
+        title_score = self.calc_title_score(submission)
 
-        score = Score()
-        score.title = self.calc_title_score(submission)
-
-        # expensive calls below
-        if (score.title > 0.0
+        # keep the expensive calls below filters
+        if (title_score > 0.0
                 and age >= MIN_SUBMISSION_AGE_TO_WARN
                 and submission.num_comments >= MIN_COMMENTS_TO_WARN
                 and not submission.distinguished == 'moderator'
@@ -63,9 +61,11 @@ class SynthsControversialBot:
                 and not submission.removed
                 and not submission.locked):
 
-            score.body = self.calc_body_score(submission)
-            score.reports = self.calc_user_reports_count(submission)
-            score.comments = self.calc_comments_score(submission)
+            score = Score(
+                title_score,
+                self.calc_body_score(submission),
+                self.calc_user_reports_count(submission),
+                self.calc_comments_score(submission))
 
             submission_score = score.calculate()
 
