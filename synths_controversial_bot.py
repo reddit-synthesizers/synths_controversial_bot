@@ -9,10 +9,10 @@ from flashtext import KeywordProcessor
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-MIN_COMMENTS_TO_WARN = 10
-MIN_SUBMISSION_AGE_TO_WARN = 60
-SCORE_THRESHHOLD = 8.0
+SCORE_THRESHHOLD = 7.0
 MAX_SUBMISSIONS_TO_PROCESS = 50
+MIN_COMMENTS_TO_WARN = 10
+MIN_SUBMISSION_AGE_TO_PROCESS = 60
 
 
 class Score():
@@ -46,33 +46,28 @@ class SynthsControversialBot:
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
-            self.process_submission(submission)
+            if self.is_actionable(submission):
+                self.process_submission(submission)
 
     def process_submission(self, submission):
-        age = self.calc_submission_age(submission)
-        title_score = self.calc_title_score(submission)
+        if (self.calc_submission_age(submission) >= MIN_SUBMISSION_AGE_TO_PROCESS
+                and submission.num_comments >= MIN_COMMENTS_TO_WARN):
 
-        # keep the expensive calls below filters
-        if (title_score > 0.0
-                and age >= MIN_SUBMISSION_AGE_TO_WARN
-                and submission.num_comments >= MIN_COMMENTS_TO_WARN
-                and not submission.distinguished == 'moderator'
-                and not submission.approved
-                and not submission.removed
-                and not submission.locked):
+            title_score = self.calc_title_score(submission)
 
-            score = Score(
-                title_score,
-                self.calc_body_score(submission),
-                self.calc_user_reports_count(submission),
-                self.calc_comments_score(submission))
+            if(title_score > 0.0):
+                score = Score(
+                    title_score,
+                    self.calc_body_score(submission),
+                    self.calc_user_reports_count(submission),
+                    self.calc_comments_score(submission))
 
-            submission_score = score.calculate()
+                submission_score = score.calculate()
 
-            if submission_score >= SCORE_THRESHHOLD:
-                self.warn(submission, score)
-            elif submission_score >= SCORE_THRESHHOLD / 1.5:
-                self.log('Trending', submission, score)
+                if submission_score >= SCORE_THRESHHOLD:
+                    self.warn(submission, score)
+                elif submission_score >= SCORE_THRESHHOLD / 1.5:
+                    self.log('Trending', submission, score)
 
     def calc_title_score(self, submission):
         score = 0
@@ -135,7 +130,14 @@ class SynthsControversialBot:
 
         return warned
 
-    @ staticmethod
+    @staticmethod
+    def is_actionable(submission):
+        return (not submission.distinguished == 'moderator'
+                and not submission.approved
+                and not submission.removed
+                and not submission.locked)
+
+    @staticmethod
     def calc_user_reports_count(obj):
         count = len(obj.user_reports)
 
@@ -144,7 +146,7 @@ class SynthsControversialBot:
 
         return count
 
-    @ staticmethod
+    @staticmethod
     def calc_submission_age(submission):
         now = datetime.datetime.now()
         created = datetime.datetime.fromtimestamp(submission.created_utc)
@@ -152,14 +154,14 @@ class SynthsControversialBot:
 
         return age.total_seconds() / 60
 
-    @ staticmethod
+    @staticmethod
     def read_text_file(filename):
         with open(filename, encoding='utf-8') as file:
             text = file.read()
 
         return text
 
-    @ staticmethod
+    @staticmethod
     def read_json_file(filename):
         with open(filename, encoding='utf-8') as file:
             data = json.load(file)
