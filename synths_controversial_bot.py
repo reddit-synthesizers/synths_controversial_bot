@@ -55,7 +55,7 @@ class SynthsControversialBot:
 
             title_score = self.calc_title_score(submission)
 
-            if(title_score > 0.0):
+            if title_score > 0.0:
                 score = Score(
                     title_score,
                     self.calc_body_score(submission),
