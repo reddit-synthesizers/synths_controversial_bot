@@ -47,26 +47,25 @@ class SynthsControversialBot:
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
-            if self.is_actionable(submission):
+            if (self.is_actionable(submission)
+                    and self.calc_submission_age(submission) >= MIN_SUBMISSION_AGE_TO_PROCESS
+                    and submission.num_comments >= MIN_COMMENTS_TO_WARN):
                 self.process_submission(submission)
 
     def process_submission(self, submission):
-        if (self.calc_submission_age(submission) >= MIN_SUBMISSION_AGE_TO_PROCESS
-                and submission.num_comments >= MIN_COMMENTS_TO_WARN):
+        title_score = self.calc_title_score(submission)
 
-            title_score = self.calc_title_score(submission)
+        if title_score > 0.0:
+            score = Score(
+                title_score,
+                self.calc_body_score(submission),
+                self.calc_user_reports_count(submission),
+                self.calc_comments_score(submission))
 
-            if title_score > 0.0:
-                score = Score(
-                    title_score,
-                    self.calc_body_score(submission),
-                    self.calc_user_reports_count(submission),
-                    self.calc_comments_score(submission))
-
-                if score.total >= SCORE_THRESHHOLD:
-                    self.warn(submission, score)
-                elif score.total >= SCORE_THRESHHOLD / 1.5:
-                    self.log('Trending', submission, score)
+            if score.total >= SCORE_THRESHHOLD:
+                self.warn(submission, score)
+            elif score.total >= SCORE_THRESHHOLD / 1.5:
+                self.log('Trending', submission, score)
 
     def calc_title_score(self, submission):
         keywords = self.keyword_processor.extract_keywords(submission.title)
