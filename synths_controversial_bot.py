@@ -1,11 +1,11 @@
 import datetime
+import functools
 import json
 import math
 import os
+
 import praw
-
 from flashtext import KeywordProcessor
-
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
@@ -22,11 +22,12 @@ class Score():
         self.reports = reports
         self.comments = comments
 
-    def calculate(self):
+    @property
+    def total(self):
         return self.title + self.body + self.reports + self.comments
 
     def __str__(self):
-        return (f'total:{self.calculate():.2f}, title:{self.title:.2f}, body:{self.body:.2f}, '
+        return (f'total:{self.total:.2f}, title:{self.title:.2f}, body:{self.body:.2f}, '
                 f'reports:{self.reports:.2f}, comments:{self.comments:.2f}')
 
 
@@ -62,28 +63,18 @@ class SynthsControversialBot:
                     self.calc_user_reports_count(submission),
                     self.calc_comments_score(submission))
 
-                submission_score = score.calculate()
-
-                if submission_score >= SCORE_THRESHHOLD:
+                if score.total >= SCORE_THRESHHOLD:
                     self.warn(submission, score)
-                elif submission_score >= SCORE_THRESHHOLD / 1.5:
+                elif score.total >= SCORE_THRESHHOLD / 1.5:
                     self.log('Trending', submission, score)
 
     def calc_title_score(self, submission):
-        score = 0
-
-        for keyword in self.keyword_processor.extract_keywords(submission.title):
-            score += self.keywords[keyword]
-
-        return score
+        keywords = self.keyword_processor.extract_keywords(submission.title)
+        return functools.reduce(lambda x, y: x + self.keywords[y], keywords, 0)
 
     def calc_body_score(self, submission):
-        score = 0
-
-        for keyword in self.keyword_processor.extract_keywords(submission.selftext):
-            score += self.keywords[keyword]
-
-        return score
+        keywords = self.keyword_processor.extract_keywords(submission.selftext)
+        return functools.reduce(lambda x, y: x + self.keywords[y], keywords, 0)
 
     def calc_comments_score(self, submission):
         score = 0
