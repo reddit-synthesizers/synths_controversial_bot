@@ -35,7 +35,7 @@ class SynthsControversialBot:
     def __init__(self, subreddit_name=DEFAULT_SUBREDDIT_NAME, dry_run=False):
         self.dry_run = dry_run
 
-        self.reddit = praw.Reddit('SynthRulesBot')
+        self.reddit = praw.Reddit('SynthsControversialBot')
         self.subreddit = self.reddit.subreddit(subreddit_name)
 
         self.warning = self.read_text_file('controversial-warning.txt')
@@ -53,35 +53,32 @@ class SynthsControversialBot:
                 self.process_submission(submission)
 
     def process_submission(self, submission):
-        title_score = self.calc_title_score(submission)
+        title_score = self.calc_keyword_score(submission.title)
 
         if title_score > 0.0:
             score = Score(
-                title_score,
-                self.calc_body_score(submission),
-                self.calc_user_reports_count(submission),
-                self.calc_comments_score(submission))
+                title=title_score,
+                body=self.calc_keyword_score(submission.selftext),
+                reports=self.calc_user_reports_count(submission),
+                comments=self.calc_comments_score(submission.comments))
 
             if score.total >= SCORE_THRESHHOLD:
                 self.warn(submission, score)
             elif score.total >= SCORE_THRESHHOLD / 1.5:
                 self.log('Trending', submission, score)
 
-    def calc_title_score(self, submission):
-        keywords = self.keyword_processor.extract_keywords(submission.title)
+    def calc_keyword_score(self, text):
+        keywords = self.keyword_processor.extract_keywords(text)
         return functools.reduce(lambda x, y: x + self.keywords[y], keywords, 0)
 
-    def calc_body_score(self, submission):
-        keywords = self.keyword_processor.extract_keywords(submission.selftext)
-        return functools.reduce(lambda x, y: x + self.keywords[y], keywords, 0)
-
-    def calc_comments_score(self, submission):
+    def calc_comments_score(self, comments):
         score = 0
-        downvoted_comments = 0
+        num_downvoted_comments = 0
 
-        submission.comments.replace_more(limit=None)
+        comments.replace_more(limit=None)
+        num_comments = len(comments.list())
 
-        for comment in submission.comments.list():
+        for comment in comments.list():
             if comment.removed:
                 score += self.weights['removed']
 
@@ -89,13 +86,12 @@ class SynthsControversialBot:
             score += self.calc_user_reports_count(comment) * self.weights['reported']
 
             if comment.score <= 0:
-                downvoted_comments += 1
+                num_downvoted_comments += 1
 
-            for keyword in self.keyword_processor.extract_keywords(comment.body):
-                score += self.keywords[keyword]
+            score += self.calc_keyword_score(comment.body)
 
-        if submission.num_comments > 0:
-            score += math.ceil(downvoted_comments / submission.num_comments * self.weights['downvoted'])
+        if num_comments > 0:
+            score += math.ceil(num_downvoted_comments / num_comments * self.weights['downvoted'])
 
         return score
 
