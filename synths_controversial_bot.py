@@ -62,14 +62,14 @@ class SynthsControversialBot:
                 reports=self.calc_user_reports_count(submission),
                 comments=self.calc_comments_score(submission.comments))
 
-            if score.total >= SCORE_THRESHHOLD:
+            if score.total >= SCORE_THRESHHOLD and not self.was_warned(submission):
                 self.warn(submission, score)
             elif score.total >= SCORE_THRESHHOLD / 1.5:
                 self.log('Trending', submission, score)
 
     def calc_keyword_score(self, text):
         keywords = self.keyword_processor.extract_keywords(text)
-        return functools.reduce(lambda x, y: x + self.keywords[y], keywords, 0)
+        return functools.reduce(lambda acc, kw: acc + self.keywords[kw], keywords, 0)
 
     def calc_comments_score(self, comments):
         score = 0
@@ -96,15 +96,14 @@ class SynthsControversialBot:
         return score
 
     def warn(self, submission, score):
-        if not self.was_warned(submission):
-            if not self.dry_run:
-                bot_comment = submission.reply(self.warning)
-                bot_comment.mod.distinguish(sticky=True)
-                bot_comment.mod.ignore_reports()
+        if not self.dry_run:
+            bot_comment = submission.reply(self.warning)
+            bot_comment.mod.distinguish(sticky=True)
+            bot_comment.mod.ignore_reports()
 
-                submission.report('Heads up. This thread is trending controversial.')
+            submission.report('Heads up. This thread is trending controversial.')
 
-            self.log('Warned', submission, score)
+        self.log('Warned', submission, score)
 
     def was_warned(self, submission):
         warned = False
