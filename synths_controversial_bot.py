@@ -111,7 +111,7 @@ class SynthsControversialBot:
         if len(submission.comments) > 0:
             first_comment = submission.comments[0]
             warned = (first_comment.distinguished == 'moderator'  # don't collide with other mods or mod bots
-                      or first_comment.author.name == self.reddit.user.me())
+                      or first_comment.author.name == self.reddit.config.username)
 
         return warned
 
