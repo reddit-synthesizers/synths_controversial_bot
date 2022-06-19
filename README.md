@@ -1,4 +1,4 @@
-# r/synthesizers rules bot
+# r/synthesizers Controversial bot
 
 This bot scans new posts and determines their controversial level. If the configured threshold is reached, the bot will leave a distinguished comment at the top of the thread warning users to play nice.
 
