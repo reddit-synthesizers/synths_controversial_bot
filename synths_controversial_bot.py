@@ -33,8 +33,6 @@ class SynthsControversialBot:
     def process_submission(self, submission):
         sentiment = self.calc_comments_sentiment(submission)
 
-        print(f'{submission.title}: {sentiment:.2f}')
-
         if sentiment <= SENTIMENT_THRESHHOLD and not self.was_warned(submission):
             self.warn(submission, sentiment)
         elif sentiment <= WARN_THRESHOLD:
