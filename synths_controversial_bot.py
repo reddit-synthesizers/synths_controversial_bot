@@ -1,34 +1,16 @@
 import datetime
-import functools
 import json
-import math
 import os
 
 import praw
-from flashtext import KeywordProcessor
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-SCORE_THRESHHOLD = 7.0
+SENTIMENT_THRESHHOLD = 0.5
+WARN_THRESHOLD = 0.7
 MAX_SUBMISSIONS_TO_PROCESS = 50
 MIN_COMMENTS_TO_WARN = 10
 MIN_SUBMISSION_AGE_TO_PROCESS = 60
-
-
-class Score():
-    def __init__(self, title=0.0, body=0.0, reports=0.0, comments=0.0):
-        self.title = title
-        self.body = body
-        self.reports = reports
-        self.comments = comments
-
-    @property
-    def total(self):
-        return self.title + self.body + self.reports + self.comments
-
-    def __str__(self):
-        return (f'total:{self.total:.2f}, title:{self.title:.2f}, body:{self.body:.2f}, '
-                f'reports:{self.reports:.2f}, comments:{self.comments:.2f}')
 
 
 class SynthsControversialBot:
@@ -39,11 +21,7 @@ class SynthsControversialBot:
         self.subreddit = self.reddit.subreddit(subreddit_name)
 
         self.warning = self.read_text_file('controversial-warning.txt')
-        self.keywords = self.read_json_file('controversial-keywords.json')
         self.weights = self.read_json_file('controversial-weights.json')
-
-        self.keyword_processor = KeywordProcessor()
-        self.keyword_processor.add_keywords_from_list(list(self.keywords))
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
@@ -53,49 +31,42 @@ class SynthsControversialBot:
                 self.process_submission(submission)
 
     def process_submission(self, submission):
-        title_score = self.calc_keyword_score(submission.title)
+        sentiment = self.calc_comments_sentiment(submission)
 
-        if title_score > 0.0:
-            score = Score(
-                title=title_score,
-                body=self.calc_keyword_score(submission.selftext),
-                reports=self.calc_user_reports_count(submission),
-                comments=self.calc_comments_score(submission.comments))
+        print(f'{submission.title}: {sentiment:.2f}')
 
-            if score.total >= SCORE_THRESHHOLD and not self.was_warned(submission):
-                self.warn(submission, score)
-            elif score.total >= SCORE_THRESHHOLD / 1.5:
-                self.log('Trending', submission, score)
+        if sentiment <= SENTIMENT_THRESHHOLD and not self.was_warned(submission):
+            self.warn(submission, sentiment)
+        elif sentiment <= WARN_THRESHOLD:
+            self.log('Trending', submission, sentiment)
 
-    def calc_keyword_score(self, text):
-        keywords = self.keyword_processor.extract_keywords(text)
-        return functools.reduce(lambda acc, kw: acc + self.keywords[kw], keywords, 0)
+    # return a number between -1.0 and 1.0 where -1.0 is the most negative and 1.0 is the most positive
+    def calc_comments_sentiment(self, submission):
+        sentiment = 1.0
 
-    def calc_comments_score(self, comments):
-        score = 0
-        num_downvoted_comments = 0
-
+        comments = submission.comments
         comments.replace_more(limit=None)
-        num_comments = len(comments.list())
+        comments_list = comments.list()
 
-        for comment in comments.list():
-            if comment.removed:
-                score += self.weights['removed']
+        num_comments = len(comments_list)
+        negative_signals = 0
 
-            score += comment.controversiality * self.weights['controversial']
-            score += self.calc_user_reports_count(comment) * self.weights['reported']
-
+        for comment in comments_list:
             if comment.score <= 0:
-                num_downvoted_comments += 1
+                negative_signals += 1
 
-            score += self.calc_keyword_score(comment.body)
+            if comment.removed:
+                negative_signals += 1
+
+            negative_signals += comment.controversiality
+            negative_signals += self.calc_user_reports_count(comment)
 
         if num_comments > 0:
-            score += math.ceil(num_downvoted_comments / num_comments * self.weights['downvoted'])
+            sentiment = -1.0 + 2.0 / (1.0 + negative_signals / num_comments)
 
-        return score
+        return sentiment
 
-    def warn(self, submission, score):
+    def warn(self, submission, sentiment):
         if not self.dry_run:
             bot_comment = submission.reply(self.warning)
             bot_comment.mod.distinguish(sticky=True)
@@ -103,7 +74,7 @@ class SynthsControversialBot:
 
             submission.report('Heads up. This thread is trending controversial.')
 
-        self.log('Warned', submission, score)
+        self.log('Warned', submission, sentiment)
 
     def was_warned(self, submission):
         warned = False
@@ -115,14 +86,14 @@ class SynthsControversialBot:
 
         return warned
 
-    @staticmethod
+    @ staticmethod
     def is_actionable(submission):
         return (not submission.distinguished == 'moderator'
                 and not submission.approved
                 and not submission.removed
                 and not submission.locked)
 
-    @staticmethod
+    @ staticmethod
     def calc_user_reports_count(obj):
         count = len(obj.user_reports)
 
@@ -131,7 +102,7 @@ class SynthsControversialBot:
 
         return count
 
-    @staticmethod
+    @ staticmethod
     def calc_submission_age(submission):
         now = datetime.datetime.now()
         created = datetime.datetime.fromtimestamp(submission.created_utc)
@@ -139,25 +110,25 @@ class SynthsControversialBot:
 
         return age.total_seconds() / 60
 
-    @staticmethod
+    @ staticmethod
     def read_text_file(filename):
         with open(filename, encoding='utf-8') as file:
             text = file.read()
 
         return text
 
-    @staticmethod
+    @ staticmethod
     def read_json_file(filename):
         with open(filename, encoding='utf-8') as file:
             data = json.load(file)
 
         return data
 
-    def log(self, message, submission, score):
+    def log(self, message, submission, sentiment):
         is_dry_run = '*' if self.dry_run is True else ''
         name = type(self).__name__
         now = datetime.datetime.now()
-        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" ({score}) ({submission.id})')
+        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" ({sentiment:.2f}) ({submission.id})')
 
 
 def lambda_handler(event=None, context=None):
