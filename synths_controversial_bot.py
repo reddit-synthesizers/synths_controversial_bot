@@ -6,7 +6,7 @@ import praw
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-SENTIMENT_THRESHHOLD = 0.5
+CONTROVERSIALITY_THRESHHOLD = 0.5
 WARN_THRESHOLD = 0.7
 MAX_SUBMISSIONS_TO_PROCESS = 50
 MIN_COMMENTS_TO_WARN = 10
@@ -30,23 +30,24 @@ class SynthsControversialBot:
                 self.process_submission(submission)
 
     def process_submission(self, submission):
-        sentiment = self.calc_comments_sentiment(submission)
+        controversiality = self.calc_submission_controversiality(submission)
 
-        if sentiment <= SENTIMENT_THRESHHOLD and not self.was_warned(submission):
-            self.warn(submission, sentiment)
-        elif sentiment <= WARN_THRESHOLD:
-            self.log('Trending', submission, sentiment)
+        if controversiality <= CONTROVERSIALITY_THRESHHOLD and not self.was_warned(submission):
+            self.warn(submission, controversiality)
+        elif controversiality <= WARN_THRESHOLD:
+            self.log('Trending', submission, controversiality)
 
-    # return a number between -1.0 and 1.0 where -1.0 is the most negative and 1.0 is the most positive
-    def calc_comments_sentiment(self, submission):
-        sentiment = 1.0
+    # return a controversiality value between -1.0 and 1.0
+    # where -1.0 is the most controversial and 1.0 is the least
+    def calc_submission_controversiality(self, submission):
+        controversiality = 1.0
 
         comments = submission.comments
         comments.replace_more(limit=None)
         comments_list = comments.list()
-
         num_comments = len(comments_list)
-        negative_signals = 0
+
+        negative_signals = self.calc_user_reports_count(submission)
 
         for comment in comments_list:
             if comment.score <= 0:
@@ -59,11 +60,11 @@ class SynthsControversialBot:
             negative_signals += self.calc_user_reports_count(comment)
 
         if num_comments > 0:
-            sentiment = -1.0 + 2.0 / (1.0 + negative_signals / num_comments)
+            controversiality = -1.0 + 2.0 / (1.0 + negative_signals / num_comments)
 
-        return sentiment
+        return controversiality
 
-    def warn(self, submission, sentiment):
+    def warn(self, submission, controversiality):
         if not self.dry_run:
             bot_comment = submission.reply(self.warning)
             bot_comment.mod.distinguish(sticky=True)
@@ -71,7 +72,7 @@ class SynthsControversialBot:
 
             submission.report('Heads up. This thread is trending controversial.')
 
-        self.log('Warned', submission, sentiment)
+        self.log('Warned', submission, controversiality)
 
     def was_warned(self, submission):
         warned = False
@@ -121,11 +122,12 @@ class SynthsControversialBot:
 
         return data
 
-    def log(self, message, submission, sentiment):
+    def log(self, message, submission, controversialityment):
         is_dry_run = '*' if self.dry_run is True else ''
         name = type(self).__name__
         now = datetime.datetime.now()
-        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" ({sentiment:.2f}) ({submission.id})')
+        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" '
+              f'({controversialityment:.2f}) ({submission.id})')
 
 
 def lambda_handler(event=None, context=None):
