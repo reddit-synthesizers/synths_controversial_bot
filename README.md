@@ -2,11 +2,11 @@
 
 This bot scans new posts and determines their controversial level. If the configured threshold is reached, the bot will leave a distinguished comment at the top of the thread warning users to play nice.
 
-The bot determines controversiality on multiple negative signals:   
+The bot determines controversiality via multiple signals:   
 
 1. The number of user reports on the submission itself.
 2. The number of user reports on individual comments.
-3. The number of comments that Reddit flagged as controversial.
+3. The number of comments that Reddit itself has flagged as controversial.
 4. The ratio of negative to positive scored comments in the submission.
 5. The number of deleted comments in the thread (by either users or moderators).
 

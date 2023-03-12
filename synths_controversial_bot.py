@@ -6,11 +6,12 @@ import praw
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIALITY_THRESHHOLD = 0.5
-WARN_THRESHOLD = 0.4
-MAX_SUBMISSIONS_TO_PROCESS = 50
-MIN_COMMENTS_TO_WARN = 10
-MIN_SUBMISSION_AGE_TO_PROCESS = 60
+CONTROVERSIALITY_THRESHHOLD = 0.5   # threshold to breach before actioning submission
+TRENDING_THRESHOLD = 0.4            # threshold to breach before logging trending submission
+MAX_SUBMISSIONS_TO_PROCESS = 50     # optimization: limit the number of submissions processed
+MIN_COMMENTS_BEFORE_WARNING = 10    # ensure a minimum of top-level comments before actioning
+MIN_SUBMISSION_AGE_TO_PROCESS = 60  # ensure a minimum submission age before actioning
+DELETED_COMMENT_DEPTH = 2           # depth of deleted comment in tree to count as a negative signal
 
 
 class SynthsControversialBot:
@@ -26,7 +27,7 @@ class SynthsControversialBot:
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
             if (self.is_actionable(submission)
                     and self.calc_submission_age(submission) >= MIN_SUBMISSION_AGE_TO_PROCESS
-                    and submission.num_comments >= MIN_COMMENTS_TO_WARN):
+                    and submission.num_comments >= MIN_COMMENTS_BEFORE_WARNING):
                 self.process_submission(submission)
 
     def process_submission(self, submission):
@@ -34,7 +35,7 @@ class SynthsControversialBot:
 
         if controversiality >= CONTROVERSIALITY_THRESHHOLD and not self.was_warned(submission):
             self.warn(submission, controversiality)
-        elif controversiality >= WARN_THRESHOLD:
+        elif controversiality >= TRENDING_THRESHOLD:
             self.log('Trending', submission, controversiality)
 
     # return a controversiality value between 0.0 and 1.0
@@ -54,7 +55,8 @@ class SynthsControversialBot:
             if comment.score <= 0:
                 negative_signals += 1
 
-            if comment.removed:
+            # check if top level comments were deleted
+            if comment.removed and comment.depth <= DELETED_COMMENT_DEPTH:
                 negative_signals += 1
 
             negative_signals += comment.controversiality
@@ -84,10 +86,11 @@ class SynthsControversialBot:
 
     @ staticmethod
     def is_actionable(submission):
-        return (not submission.distinguished == 'moderator'
-                and not submission.approved
-                and not submission.removed
-                and not submission.locked)
+        return not any([
+            submission.distinguished == 'moderator',
+            submission.approved,
+            submission.removed,
+            submission.locked])
 
     @ staticmethod
     def calc_user_reports_count(obj):
@@ -120,12 +123,12 @@ class SynthsControversialBot:
 
         return data
 
-    def log(self, message, submission, controversialityment):
+    def log(self, message, submission, controversiality):
         is_dry_run = '*' if self.dry_run is True else ''
         name = type(self).__name__
         now = datetime.datetime.now()
         print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" '
-              f'({controversialityment:.2f}) ({submission.id})')
+              f'({controversiality:.2f}) ({submission.id})')
 
 
 def lambda_handler(event=None, context=None):
