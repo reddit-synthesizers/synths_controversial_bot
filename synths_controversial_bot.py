@@ -21,7 +21,6 @@ class SynthsControversialBot:
         self.subreddit = self.reddit.subreddit(subreddit_name)
 
         self.warning = self.read_text_file('controversial-warning.txt')
-        self.weights = self.read_json_file('controversial-weights.json')
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
