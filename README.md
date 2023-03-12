@@ -4,7 +4,7 @@ This bot scans new posts and determines their controversial level. If the config
 
 The bot determines controversiality on multiple negative signals:   
 
-1. The he number of user reports on the submission iteself.
+1. The number of user reports on the submission itself.
 2. The number of user reports on individual comments.
 3. The number of comments that Reddit flagged as controversial.
 4. The ratio of negative to positive scored comments in the submission.
