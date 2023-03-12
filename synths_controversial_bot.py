@@ -49,7 +49,7 @@ class SynthsControversialBot:
         if num_comments == 0:
             return 0.0
 
-        negative_signals = self.calc_user_reports_count(submission)
+        negative_signals = abs(submission.num_reports)
 
         for comment in comments_list:
             if comment.score <= 0:
@@ -60,7 +60,7 @@ class SynthsControversialBot:
                 negative_signals += 1
 
             negative_signals += comment.controversiality
-            negative_signals += self.calc_user_reports_count(comment)
+            negative_signals += abs(comment.num_reports)
 
         return min(negative_signals / num_comments, 1.0)
 
@@ -91,15 +91,6 @@ class SynthsControversialBot:
             submission.approved,
             submission.removed,
             submission.locked])
-
-    @ staticmethod
-    def calc_user_reports_count(obj):
-        count = len(obj.user_reports)
-
-        if hasattr(obj, 'user_reports_dismissed'):
-            count += len(obj.user_reports_dismissed)
-
-        return count
 
     @ staticmethod
     def calc_submission_age(submission):
