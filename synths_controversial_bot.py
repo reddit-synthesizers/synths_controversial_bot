@@ -45,6 +45,9 @@ class SynthsControversialBot:
         comments_list = comments.list()
         num_comments = len(comments_list)
 
+        if num_comments == 0:
+            return 0.0
+
         negative_signals = self.calc_user_reports_count(submission)
 
         for comment in comments_list:
@@ -57,7 +60,7 @@ class SynthsControversialBot:
             negative_signals += comment.controversiality
             negative_signals += self.calc_user_reports_count(comment)
 
-        return 0.0 if num_comments == 0 else min(negative_signals / num_comments, 1.0)
+        return min(negative_signals / num_comments, 1.0)
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
