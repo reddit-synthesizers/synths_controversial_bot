@@ -7,7 +7,7 @@ import praw
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
 CONTROVERSIALITY_THRESHHOLD = 0.5
-WARN_THRESHOLD = 0.7
+WARN_THRESHOLD = 0.4
 MAX_SUBMISSIONS_TO_PROCESS = 50
 MIN_COMMENTS_TO_WARN = 10
 MIN_SUBMISSION_AGE_TO_PROCESS = 60
@@ -32,16 +32,14 @@ class SynthsControversialBot:
     def process_submission(self, submission):
         controversiality = self.calc_submission_controversiality(submission)
 
-        if controversiality <= CONTROVERSIALITY_THRESHHOLD and not self.was_warned(submission):
+        if controversiality >= CONTROVERSIALITY_THRESHHOLD and not self.was_warned(submission):
             self.warn(submission, controversiality)
-        elif controversiality <= WARN_THRESHOLD:
+        elif controversiality >= WARN_THRESHOLD:
             self.log('Trending', submission, controversiality)
 
-    # return a controversiality value between -1.0 and 1.0
-    # where -1.0 is the most controversial and 1.0 is the least
+    # return a controversiality value between 0.0 and 1.0
+    # where 0.0 is the least controversial and 1.0 is the most
     def calc_submission_controversiality(self, submission):
-        controversiality = 1.0
-
         comments = submission.comments
         comments.replace_more(limit=None)
         comments_list = comments.list()
@@ -59,10 +57,7 @@ class SynthsControversialBot:
             negative_signals += comment.controversiality
             negative_signals += self.calc_user_reports_count(comment)
 
-        if num_comments > 0:
-            controversiality = -1.0 + 2.0 / (1.0 + negative_signals / num_comments)
-
-        return controversiality
+        return 0.0 if num_comments == 0 else min(negative_signals / num_comments, 1.0)
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
