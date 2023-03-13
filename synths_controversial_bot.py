@@ -6,7 +6,7 @@ import praw
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIALITY_THRESHHOLD = 0.5   # threshold to breach before actioning submission
+CONTROVERSIALITY_THRESHOLD = 0.5   # threshold to breach before actioning submission
 TRENDING_THRESHOLD = 0.4            # threshold to breach before logging trending submission
 MAX_SUBMISSIONS_TO_PROCESS = 50     # optimization: limit the number of submissions processed
 MIN_COMMENTS_BEFORE_WARNING = 10    # ensure a minimum of top-level comments before actioning
@@ -33,7 +33,7 @@ class SynthsControversialBot:
     def process_submission(self, submission):
         controversiality = self.calc_submission_controversiality(submission)
 
-        if controversiality >= CONTROVERSIALITY_THRESHHOLD and not self.was_warned(submission):
+        if controversiality >= CONTROVERSIALITY_THRESHOLD and not self.was_warned(submission):
             self.warn(submission, controversiality)
         elif controversiality >= TRENDING_THRESHOLD:
             self.log('Trending', submission, controversiality)
