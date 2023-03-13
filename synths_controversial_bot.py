@@ -41,28 +41,31 @@ class SynthsControversialBot:
     # return a controversiality value between 0.0 and 1.0
     # where 0.0 is the least controversial and 1.0 is the most
     def calc_submission_controversiality(self, submission):
+        if submission.num_comments == 0:
+            return 0.0
+
         comments = submission.comments
         comments.replace_more(limit=None)
         comments_list = comments.list()
         num_comments = len(comments_list)
 
-        if num_comments == 0:
-            return 0.0
+        negative_signals = 0
+        negative_comments = 0
 
-        negative_signals = abs(submission.num_reports)
+        if submission.num_reports != 0:
+            negative_signals += 1
 
-        for comment in comments_list:
-            if comment.score <= 0:
-                negative_signals += 1
+        if submission.upvote_ratio < 0.5:
+            negative_signals += 1
 
-            # check if top level comments were deleted
-            if comment.removed and comment.depth <= DELETED_COMMENT_DEPTH:
-                negative_signals += 1
+        negative_comments += sum(
+            1 for comment in comments_list
+            if comment.score <= 0
+            or (comment.removed and comment.depth <= DELETED_COMMENT_DEPTH)
+            or comment.controversiality > 0
+            or comment.num_reports != 0)
 
-            negative_signals += comment.controversiality
-            negative_signals += abs(comment.num_reports)
-
-        return min(negative_signals / num_comments, 1.0)
+        return (negative_signals + negative_comments) / (num_comments - negative_comments)
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
