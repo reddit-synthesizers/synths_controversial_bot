@@ -1,13 +1,12 @@
 import datetime
-import json
 import os
 
 import praw
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIALITY_THRESHOLD = 0.5   # threshold to breach before actioning submission
-TRENDING_THRESHOLD = 0.4            # threshold to breach before logging trending submission
+CONTROVERSIALITY_THRESHOLD = 0.5    # upper threshold to breach before actioning submission
+TRENDING_THRESHOLD = 0.4            # upper threshold to breach before logging trending submission
 MAX_SUBMISSIONS_TO_PROCESS = 50     # optimization: limit the number of submissions processed
 MIN_COMMENTS_BEFORE_WARNING = 10    # ensure a minimum of top-level comments before actioning
 MIN_SUBMISSION_AGE_TO_PROCESS = 60  # ensure a minimum submission age before actioning
@@ -35,7 +34,7 @@ class SynthsControversialBot:
 
         if controversiality >= CONTROVERSIALITY_THRESHOLD and not self.was_warned(submission):
             self.warn(submission, controversiality)
-        elif controversiality >= TRENDING_THRESHOLD:
+        elif controversiality >= TRENDING_THRESHOLD and not self.was_warned(submission):
             self.log('Trending', submission, controversiality)
 
     # return a controversiality value between 0.0 and 1.0
@@ -65,7 +64,7 @@ class SynthsControversialBot:
             or comment.controversiality > 0
             or comment.num_reports != 0)
 
-        return (negative_signals + negative_comments) / (num_comments - negative_comments)
+        return min((negative_signals + negative_comments) / (num_comments - negative_comments), 1.0)
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
@@ -109,13 +108,6 @@ class SynthsControversialBot:
             text = file.read()
 
         return text
-
-    @ staticmethod
-    def read_json_file(filename):
-        with open(filename, encoding='utf-8') as file:
-            data = json.load(file)
-
-        return data
 
     def log(self, message, submission, controversiality):
         is_dry_run = '*' if self.dry_run is True else ''
