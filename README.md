@@ -7,12 +7,12 @@ The bot determines controversiality via multiple signals:
 1. User reports on the submission
 2. A low upvote ratio on the submission
 3. The number of negative comments, as determined by:
+    1. User reports on the comment
     1. Downvotes on the comment
-    2. Comment is deleted by the author or mod
-    3. Reddit's controversiality rating of the comment
-    4. User reports on the comment
+    3. Sentiment of the comment
+    4. Reddit's controversiality rating of the comment
 
-By default, the bot will monitor the (up to) 50 newest submissions to the subreddit, waiting until the submission is at least 60 minutes old and has at least 10 top-level comments before actioning.
+By default, the bot will monitor the (up to) 50 newest submissions to the subreddit, waiting until the submission is at least 60 minutes old and has at least 20 top-level comments before actioning.
 
 # Installation
 

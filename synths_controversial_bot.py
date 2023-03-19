@@ -1,16 +1,18 @@
 import datetime
 import os
 
+import nltk
 import praw
+from nltk.sentiment import SentimentIntensityAnalyzer
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIALITY_THRESHOLD = 0.5    # upper threshold to breach before actioning submission
-TRENDING_THRESHOLD = 0.4            # upper threshold to breach before logging trending submission
-MAX_SUBMISSIONS_TO_PROCESS = 50     # optimization: limit the number of submissions processed
-MIN_COMMENTS_BEFORE_WARNING = 10    # ensure a minimum of top-level comments before actioning
-MIN_SUBMISSION_AGE_TO_PROCESS = 60  # ensure a minimum submission age before actioning
-DELETED_COMMENT_DEPTH = 2           # depth of deleted comment in tree to count as a negative signal
+CONTROVERSIALITY_THRESHOLD = 0.60    # upper threshold to breach before actioning submission
+TRENDING_THRESHOLD = 0.40            # upper threshold to breach before logging trending submission
+MAX_SUBMISSIONS_TO_PROCESS = 50      # optimization: limit the number of submissions processed
+MIN_COMMENTS_BEFORE_WARNING = 20     # ensure a minimum of top-level comments before actioning
+MIN_SUBMISSION_AGE_TO_PROCESS = 60   # ensure a minimum submission age before actioning
+NEGATIVE_SENTIMENT_THRESHOLD = -0.3  # lower threshold to breach to consider a comment negative
 
 
 class SynthsControversialBot:
@@ -19,6 +21,8 @@ class SynthsControversialBot:
 
         self.reddit = praw.Reddit('SynthsControversialBot')
         self.subreddit = self.reddit.subreddit(subreddit_name)
+
+        self.analyzer = SentimentIntensityAnalyzer()
 
         self.warning = self.read_text_file('controversial-warning.txt')
 
@@ -48,23 +52,38 @@ class SynthsControversialBot:
         comments_list = comments.list()
         num_comments = len(comments_list)
 
-        negative_signals = 0
-        negative_comments = 0
+        submission_signals = self.calc_submission_signals(submission)
 
-        if submission.num_reports != 0:
-            negative_signals += 1
+        comment_signals = sum(self.calc_comment_signals(comment) for comment in comments_list)
+
+        return min((submission_signals + comment_signals) / (num_comments - comment_signals), 1.0)
+
+    def calc_submission_signals(self, submission):
+        signals = abs(submission.num_reports)
 
         if submission.upvote_ratio < 0.5:
-            negative_signals += 1
+            signals += 1
 
-        negative_comments += sum(
-            1 for comment in comments_list
-            if comment.score <= 0
-            or (comment.removed and comment.depth <= DELETED_COMMENT_DEPTH)
-            or comment.controversiality > 0
-            or comment.num_reports != 0)
+        return signals
 
-        return min((negative_signals + negative_comments) / (num_comments - negative_comments), 1.0)
+    def calc_comment_signals(self, comment):
+        signals = abs(comment.num_reports)
+
+        if comment.score <= 0:
+            signals += 1
+
+        if comment.controversiality != 0:
+            signals += 1
+
+        if self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD:
+            signals += 1
+
+        return signals
+
+    def calc_comment_sentiment(self, comment):
+        sentences = nltk.sent_tokenize(comment.body)
+        return sum(self.analyzer.polarity_scores(sentence)['compound']
+                   for sentence in sentences) / len(sentences)
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
