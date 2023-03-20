@@ -60,7 +60,7 @@ class SynthsControversialBot:
     # 1 is negative, 0 is postive
     def calc_comment_polarity(self, comment):
         return 1 if any([
-            comment.num_reports != -0,
+            comment.num_reports != 0,
             comment.score <= 0,
             comment.controversiality != 0,
             self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD
