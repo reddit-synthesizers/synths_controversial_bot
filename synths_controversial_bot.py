@@ -9,9 +9,11 @@ DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
 CONTROVERSIAL_THRESHOLD = 0.30       # upper threshold to breach before actioning submission
 TRENDING_THRESHOLD = 0.25            # upper threshold to breach before logging trending submission
+
 MAX_SUBMISSIONS_TO_PROCESS = 40      # optimization: limit the number of submissions processed
 MIN_COMMENTS_BEFORE_PROCESSING = 10  # ensure a minimum of top-level comments before actioning
 MIN_SUBMISSION_AGE_TO_PROCESS = 60   # ensure a minimum submission age before actioning
+
 NEGATIVE_SENTIMENT_THRESHOLD = -0.5  # lower threshold to breach to consider a comment negative
 
 
@@ -34,33 +36,31 @@ class SynthsControversialBot:
                 self.process_submission(submission)
 
     def process_submission(self, submission):
-        polarity_ratio = self.calc_polarity_ratio(submission)
+        polarity_ratio = self.calc_submission_polarity_ratio(submission)
 
         if polarity_ratio >= CONTROVERSIAL_THRESHOLD and not self.was_warned(submission):
             self.warn(submission, polarity_ratio)
         elif polarity_ratio >= TRENDING_THRESHOLD and not self.was_warned(submission):
             self.log('Trending', submission, polarity_ratio)
 
-    # return the ratio of negative to positive comments across a submission
+    # returns the ratio of negative to positive comments across a submission
     # where 0.0 is the least negative and 1.0 is the most
-    def calc_polarity_ratio(self, submission):
+    def calc_submission_polarity_ratio(self, submission):
         if (submission.num_comments == 0 or
                 len(submission.comments) < MIN_COMMENTS_BEFORE_PROCESSING):
             return 0.0
 
-        comments = submission.comments
-        comments.replace_more(limit=None)
-        comments_list = comments.list()
-        num_comments = len(comments_list)
+        submission.comments.replace_more(limit=None)
 
         num_negative_comments = sum(self.calc_comment_polarity(comment)
-                                    for comment in comments_list)
+                                    for comment in submission.comments.list())
 
-        return num_negative_comments / num_comments
+        return num_negative_comments / submission.num_comments
 
     # 1 is negative, 0 is postive
     def calc_comment_polarity(self, comment):
         return 1 if any([
+            comment.num_reports != -0,
             comment.score <= 0,
             comment.controversiality != 0,
             self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD
