@@ -7,12 +7,12 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIALITY_THRESHOLD = 0.60    # upper threshold to breach before actioning submission
-TRENDING_THRESHOLD = 0.40            # upper threshold to breach before logging trending submission
-MAX_SUBMISSIONS_TO_PROCESS = 50      # optimization: limit the number of submissions processed
-MIN_COMMENTS_BEFORE_WARNING = 20     # ensure a minimum of top-level comments before actioning
+CONTROVERSIAL_THRESHOLD = 0.30       # upper threshold to breach before actioning submission
+TRENDING_THRESHOLD = 0.25            # upper threshold to breach before logging trending submission
+MAX_SUBMISSIONS_TO_PROCESS = 40      # optimization: limit the number of submissions processed
+MIN_COMMENTS_BEFORE_PROCESSING = 10  # ensure a minimum of top-level comments before actioning
 MIN_SUBMISSION_AGE_TO_PROCESS = 60   # ensure a minimum submission age before actioning
-NEGATIVE_SENTIMENT_THRESHOLD = -0.3  # lower threshold to breach to consider a comment negative
+NEGATIVE_SENTIMENT_THRESHOLD = -0.5  # lower threshold to breach to consider a comment negative
 
 
 class SynthsControversialBot:
@@ -30,21 +30,22 @@ class SynthsControversialBot:
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
             if (self.is_actionable(submission)
                     and self.calc_submission_age(submission) >= MIN_SUBMISSION_AGE_TO_PROCESS
-                    and submission.num_comments >= MIN_COMMENTS_BEFORE_WARNING):
+                    and submission.num_comments >= MIN_COMMENTS_BEFORE_PROCESSING):
                 self.process_submission(submission)
 
     def process_submission(self, submission):
-        controversiality = self.calc_submission_controversiality(submission)
+        polarity_ratio = self.calc_polarity_ratio(submission)
 
-        if controversiality >= CONTROVERSIALITY_THRESHOLD and not self.was_warned(submission):
-            self.warn(submission, controversiality)
-        elif controversiality >= TRENDING_THRESHOLD and not self.was_warned(submission):
-            self.log('Trending', submission, controversiality)
+        if polarity_ratio >= CONTROVERSIAL_THRESHOLD and not self.was_warned(submission):
+            self.warn(submission, polarity_ratio)
+        elif polarity_ratio >= TRENDING_THRESHOLD and not self.was_warned(submission):
+            self.log('Trending', submission, polarity_ratio)
 
-    # return a controversiality value between 0.0 and 1.0
-    # where 0.0 is the least controversial and 1.0 is the most
-    def calc_submission_controversiality(self, submission):
-        if submission.num_comments == 0:
+    # return the ratio of negative to positive comments across a submission
+    # where 0.0 is the least negative and 1.0 is the most
+    def calc_polarity_ratio(self, submission):
+        if (submission.num_comments == 0 or
+                len(submission.comments) < MIN_COMMENTS_BEFORE_PROCESSING):
             return 0.0
 
         comments = submission.comments
@@ -52,33 +53,18 @@ class SynthsControversialBot:
         comments_list = comments.list()
         num_comments = len(comments_list)
 
-        submission_signals = self.calc_submission_signals(submission)
+        num_negative_comments = sum(self.calc_comment_polarity(comment)
+                                    for comment in comments_list)
 
-        comment_signals = sum(self.calc_comment_signals(comment) for comment in comments_list)
+        return num_negative_comments / num_comments
 
-        return min((submission_signals + comment_signals) / (num_comments - comment_signals), 1.0)
-
-    def calc_submission_signals(self, submission):
-        signals = abs(submission.num_reports)
-
-        if submission.upvote_ratio < 0.5:
-            signals += 1
-
-        return signals
-
-    def calc_comment_signals(self, comment):
-        signals = abs(comment.num_reports)
-
-        if comment.score <= 0:
-            signals += 1
-
-        if comment.controversiality != 0:
-            signals += 1
-
-        if self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD:
-            signals += 1
-
-        return signals
+    # 1 is negative, 0 is postive
+    def calc_comment_polarity(self, comment):
+        return 1 if any([
+            comment.score <= 0,
+            comment.controversiality != 0,
+            self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD
+        ]) else 0
 
     def calc_comment_sentiment(self, comment):
         sentences = nltk.sent_tokenize(comment.body)
