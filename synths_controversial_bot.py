@@ -7,10 +7,10 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIAL_THRESHOLD = 0.30       # upper threshold to breach before actioning submission
+CONTROVERSIAL_THRESHOLD = 0.33       # upper threshold to breach before actioning submission
 TRENDING_THRESHOLD = 0.25            # upper threshold to breach before logging trending submission
 
-MAX_SUBMISSIONS_TO_PROCESS = 40      # optimization: limit the number of submissions processed
+MAX_SUBMISSIONS_TO_PROCESS = 25      # optimization: limit the number of submissions processed
 MIN_COMMENTS_BEFORE_PROCESSING = 10  # ensure a minimum of top-level comments before actioning
 MIN_SUBMISSION_AGE_TO_PROCESS = 60   # ensure a minimum submission age before actioning
 
@@ -46,8 +46,7 @@ class SynthsControversialBot:
     # returns the ratio of negative to positive comments across a submission
     # where 0.0 is the least negative and 1.0 is the most
     def calc_submission_polarity_ratio(self, submission):
-        if (submission.num_comments == 0 or
-                len(submission.comments) < MIN_COMMENTS_BEFORE_PROCESSING):
+        if submission.num_comments == 0 or len(submission.comments) < MIN_COMMENTS_BEFORE_PROCESSING:
             return 0.0
 
         submission.comments.replace_more(limit=None)
@@ -57,7 +56,8 @@ class SynthsControversialBot:
 
         return num_negative_comments / submission.num_comments
 
-    # 1 is negative, 0 is postive
+    # calculates comment polarity (negative or positive)
+    # 1 for negative and 0 for positive
     def calc_comment_polarity(self, comment):
         return 1 if any([
             comment.num_reports != 0,
@@ -66,6 +66,8 @@ class SynthsControversialBot:
             self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD
         ]) else 0
 
+    # determine the average sentiment of the comment body as a collection of sentences
+    # see: https://github.com/vaderSentiment/vaderSentiment
     def calc_comment_sentiment(self, comment):
         sentences = nltk.sent_tokenize(comment.body)
         return sum(self.analyzer.polarity_scores(sentence)['compound']

@@ -2,15 +2,14 @@
 
 This bot scans new posts and determines their controversiality level. If the configured controversiality threshold is reached, the bot will leave a distinguished comment at the top of the thread warning users to play nice.
 
-The bot determines controversiality via multiple signals:   
+Controversiality is determined via the ratio of negative to postive comments, as determined by:
 
-The number of negative comments, as determined by any:
     1. User reports on the comment
     1. Downvotes on the comment
     3. Sentiment of the comment
-    4. Reddit's controversiality rating of the comment
+    4. Reddit's controversiality flag on the comment
 
-By default, the bot will monitor the (up to) 40 newest submissions to the subreddit, waiting until the submission is at least 60 minutes old and has at least 10 top-level comments before actioning.
+By default, the bot will monitor the (up to) 25 newest submissions to the subreddit, waiting until the submission is at least 60 minutes old and has at least 10 top-level comments before actioning. The default threshold for negative to postive comments is 33%, which represents about 2.5% of r/synthesizers posts with over 10 top-level comments.
 
 # Installation
 
