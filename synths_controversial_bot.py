@@ -5,6 +5,7 @@ import nltk
 import praw
 from nltk.sentiment import SentimentIntensityAnalyzer
 
+DEFAULT_CLIENT_ID = 'SynthsControversialBot'
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
 
@@ -27,10 +28,10 @@ NEGATIVE_SENTIMENT_THRESHOLD = -0.5
 
 
 class SynthsControversialBot:
-    def __init__(self, subreddit_name=DEFAULT_SUBREDDIT_NAME, dry_run=False):
+    def __init__(self, client_id=DEFAULT_CLIENT_ID, subreddit_name=DEFAULT_SUBREDDIT_NAME, dry_run=False):
         self.dry_run = dry_run
 
-        self.reddit = praw.Reddit('SynthsControversialBot')
+        self.reddit = praw.Reddit(client_id)
         self.subreddit = self.reddit.subreddit(subreddit_name)
 
         self.analyzer = SentimentIntensityAnalyzer()
@@ -39,16 +40,16 @@ class SynthsControversialBot:
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
-            self.process_submission(submission)
+            if self.should_process(submission):
+                self.process_submission(submission)
 
     def process_submission(self, submission):
-        if self.should_process(submission):
-            polarity_ratio = self.calc_submission_polarity_ratio(submission)
+        polarity_ratio = self.calc_submission_polarity_ratio(submission)
 
-            if polarity_ratio >= CONTROVERSIAL_THRESHOLD and not self.was_warned(submission):
-                self.warn(submission, polarity_ratio)
-            elif polarity_ratio >= TRENDING_THRESHOLD and not self.was_warned(submission):
-                self.log('Trending', submission, polarity_ratio)
+        if polarity_ratio >= CONTROVERSIAL_THRESHOLD and not self.was_warned(submission):
+            self.warn(submission, polarity_ratio)
+        elif polarity_ratio >= TRENDING_THRESHOLD and not self.was_warned(submission):
+            self.print_message('Trending', submission, polarity_ratio)
 
     def should_process(self, submission):
         return not (
@@ -94,7 +95,7 @@ class SynthsControversialBot:
 
             submission.report('Heads up. This thread is trending controversial.')
 
-        self.log('Warned', submission, controversiality)
+        self.print_message('Warned', submission, controversiality)
 
     def was_warned(self, submission):
         warned = False
@@ -105,6 +106,13 @@ class SynthsControversialBot:
                       or first_comment.author.name == self.reddit.config.username)
 
         return warned
+
+    def print_message(self, message, submission, controversiality):
+        is_dry_run = '*' if self.dry_run is True else ''
+        name = type(self).__name__
+        now = datetime.datetime.now()
+        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" '
+              f'({controversiality:.2f}) ({submission.id})')
 
     @ staticmethod
     def calc_submission_age(submission):
@@ -121,18 +129,12 @@ class SynthsControversialBot:
 
         return text
 
-    def log(self, message, submission, controversiality):
-        is_dry_run = '*' if self.dry_run is True else ''
-        name = type(self).__name__
-        now = datetime.datetime.now()
-        print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" '
-              f'({controversiality:.2f}) ({submission.id})')
-
 
 def lambda_handler(event=None, context=None):
     subreddit_name = os.environ['subreddit_name'] if 'subreddit_name' in os.environ else DEFAULT_SUBREDDIT_NAME
+    client_id = os.environ['client_id'] if 'client_id' in os.environ else DEFAULT_CLIENT_ID
     dry_run = os.environ['dry_run'] == 'True' if 'dry_run' in os.environ else False
-    bot = SynthsControversialBot(subreddit_name=subreddit_name, dry_run=dry_run)
+    bot = SynthsControversialBot(client_id=client_id, subreddit_name=subreddit_name, dry_run=dry_run)
     bot.scan()
 
 
