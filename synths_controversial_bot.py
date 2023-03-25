@@ -7,14 +7,23 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 
 DEFAULT_SUBREDDIT_NAME = 'synthesizers'
 
-CONTROVERSIAL_THRESHOLD = 0.33       # upper threshold to breach before actioning submission
-TRENDING_THRESHOLD = 0.25            # upper threshold to breach before logging trending submission
 
-MAX_SUBMISSIONS_TO_PROCESS = 25      # optimization: limit the number of submissions processed
-MIN_COMMENTS_BEFORE_PROCESSING = 10  # ensure a minimum of top-level comments before actioning
-MIN_SUBMISSION_AGE_TO_PROCESS = 60   # ensure a minimum submission age before actioning
+# ratio of negative to positve comment to breach before warning a submission
+CONTROVERSIAL_THRESHOLD = 0.33
+# ratio of negative to positve comment to breach before logging a trending submission
+TRENDING_THRESHOLD = 0.25
 
-NEGATIVE_SENTIMENT_THRESHOLD = -0.5  # lower threshold to breach to consider a comment negative
+# optimization: limit the number of submissions processed
+MAX_SUBMISSIONS_TO_PROCESS = 50
+# optimization: ensure a minimum of top-level comments before processing
+MIN_TOP_LEVEL_COMMENTS_BEFORE_PROCESSING = 10
+# optimization: ensure a minimum of total comments before processing
+MIN_TOTAL_COMMENTS_BEFORE_PROCESSING = 30
+# ensure a minimum submission age, in minutes, before processing
+MIN_SUBMISSION_AGE_TO_PROCESS = 60
+
+# lower threshold to breach to consider a comment negative
+NEGATIVE_SENTIMENT_THRESHOLD = -0.5
 
 
 class SynthsControversialBot:
@@ -30,41 +39,45 @@ class SynthsControversialBot:
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
-            if (self.is_actionable(submission)
-                    and self.calc_submission_age(submission) >= MIN_SUBMISSION_AGE_TO_PROCESS
-                    and submission.num_comments >= MIN_COMMENTS_BEFORE_PROCESSING):
-                self.process_submission(submission)
+            self.process_submission(submission)
 
     def process_submission(self, submission):
-        polarity_ratio = self.calc_submission_polarity_ratio(submission)
+        if self.should_process(submission):
+            polarity_ratio = self.calc_submission_polarity_ratio(submission)
 
-        if polarity_ratio >= CONTROVERSIAL_THRESHOLD and not self.was_warned(submission):
-            self.warn(submission, polarity_ratio)
-        elif polarity_ratio >= TRENDING_THRESHOLD and not self.was_warned(submission):
-            self.log('Trending', submission, polarity_ratio)
+            if polarity_ratio >= CONTROVERSIAL_THRESHOLD and not self.was_warned(submission):
+                self.warn(submission, polarity_ratio)
+            elif polarity_ratio >= TRENDING_THRESHOLD and not self.was_warned(submission):
+                self.log('Trending', submission, polarity_ratio)
+
+    def should_process(self, submission):
+        return not (
+            submission.distinguished == 'moderator' or
+            submission.approved or
+            submission.removed or
+            submission.locked or
+            self.calc_submission_age(submission) < MIN_SUBMISSION_AGE_TO_PROCESS or
+            submission.num_comments < MIN_TOTAL_COMMENTS_BEFORE_PROCESSING or
+            len(submission.comments) < MIN_TOP_LEVEL_COMMENTS_BEFORE_PROCESSING  # slow, so check last
+        )
 
     # returns the ratio of negative to positive comments across a submission
     # where 0.0 is the least negative and 1.0 is the most
     def calc_submission_polarity_ratio(self, submission):
-        if submission.num_comments == 0 or len(submission.comments) < MIN_COMMENTS_BEFORE_PROCESSING:
-            return 0.0
-
         submission.comments.replace_more(limit=None)
-
         num_negative_comments = sum(self.calc_comment_polarity(comment)
                                     for comment in submission.comments.list())
-
         return num_negative_comments / submission.num_comments
 
     # calculates comment polarity (negative or positive)
     # 1 for negative and 0 for positive
     def calc_comment_polarity(self, comment):
-        return 1 if any([
-            comment.num_reports != 0,
-            comment.score <= 0,
-            comment.controversiality != 0,
+        return 1 if (
+            comment.num_reports != 0 or
+            comment.score <= 0 or
+            comment.controversiality != 0 or
             self.calc_comment_sentiment(comment) <= NEGATIVE_SENTIMENT_THRESHOLD
-        ]) else 0
+        ) else 0
 
     # determine the average sentiment of the comment body as a collection of sentences
     # see: https://github.com/vaderSentiment/vaderSentiment
@@ -92,14 +105,6 @@ class SynthsControversialBot:
                       or first_comment.author.name == self.reddit.config.username)
 
         return warned
-
-    @ staticmethod
-    def is_actionable(submission):
-        return not any([
-            submission.distinguished == 'moderator',
-            submission.approved,
-            submission.removed,
-            submission.locked])
 
     @ staticmethod
     def calc_submission_age(submission):
