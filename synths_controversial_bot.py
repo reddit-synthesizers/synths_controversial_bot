@@ -36,8 +36,6 @@ class SynthsControversialBot:
 
         self.analyzer = SentimentIntensityAnalyzer()
 
-        self.warning = self.read_text_file('controversial-warning.txt')
-
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
             if self.should_process(submission):
@@ -89,7 +87,9 @@ class SynthsControversialBot:
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
-            bot_comment = submission.reply(self.warning)
+            warning = self.read_text_file('controversial-warning.txt')
+
+            bot_comment = submission.reply(warning)
             bot_comment.mod.distinguish(sticky=True)
             bot_comment.mod.ignore_reports()
 
@@ -125,9 +125,7 @@ class SynthsControversialBot:
     @ staticmethod
     def read_text_file(filename):
         with open(filename, encoding='utf-8') as file:
-            text = file.read()
-
-        return text
+            return file.read()
 
 
 def lambda_handler(event=None, context=None):
