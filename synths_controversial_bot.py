@@ -26,19 +26,22 @@ MIN_SUBMISSION_AGE_TO_PROCESS = 60
 # lower threshold to breach to consider a comment negative
 NEGATIVE_SENTIMENT_THRESHOLD = -0.5
 
+# path to the warning template
+WARNING_TEMPLATE = 'data/synths_controversial_bot/controversial-warning.txt'
+
 
 class SynthsControversialBot:
-    def __init__(self, client_id=DEFAULT_CLIENT_ID, subreddit_name=DEFAULT_SUBREDDIT_NAME, dry_run=False):
+    def __init__(self, client_id=DEFAULT_CLIENT_ID, subreddit_name=DEFAULT_SUBREDDIT_NAME, dry_run=False, reddit=None):
         self.dry_run = dry_run
 
-        self.reddit = praw.Reddit(client_id)
+        self.reddit = reddit if reddit else praw.Reddit(client_id)
         self.subreddit = self.reddit.subreddit(subreddit_name)
 
         self.analyzer = SentimentIntensityAnalyzer()
 
     def scan(self):
         for submission in self.subreddit.new(limit=MAX_SUBMISSIONS_TO_PROCESS):
-            if self.should_process(submission):
+            if "behringer" in submission.title.lower() and self.should_process(submission):
                 self.process_submission(submission)
 
     def process_submission(self, submission):
@@ -87,7 +90,7 @@ class SynthsControversialBot:
 
     def warn(self, submission, controversiality):
         if not self.dry_run:
-            warning = self.read_text_file('controversial-warning.txt')
+            warning = self.read_text_file(WARNING_TEMPLATE)
 
             bot_comment = submission.reply(warning)
             bot_comment.mod.distinguish(sticky=True)
@@ -107,12 +110,12 @@ class SynthsControversialBot:
 
         return warned
 
-    def print_message(self, message, submission, controversiality):
+    def print_message(self, message, submission, polarity_ratio):
         is_dry_run = '*' if self.dry_run is True else ''
         name = type(self).__name__
         now = datetime.datetime.now()
         print(f'{is_dry_run}[{name}][{now}] {message}: "{submission.title}" '
-              f'({controversiality:.2f}) ({submission.id})')
+              f'({polarity_ratio:.2f}) ({submission.id})')
 
     @ staticmethod
     def calc_submission_age(submission):
